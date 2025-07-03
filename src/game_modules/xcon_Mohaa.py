@@ -69,14 +69,12 @@ class Server(xo.Server):
 
 
 class ServerController(xc.ServerController):
-
     def __init__(self,map_controller=None,client_controller=None,**kwargs):
         super().__init__(map_controller,client_controller)
         self.game_id = game_id
 
-
     def getMethods():
-        return [ApiMethodOutput("! not implemented yet !")]
+        pass
 
     def getAll(self):
         pass
