@@ -12,16 +12,11 @@ class ServerController(BigSuperDaddyController):
         self.map = map_controller
         self.client = client_controller
 
-
-    #network_protocol = Server.network_protocol  # should be a static variable
-
     def getMethods():
         pass
 
     def getStatus(self,server_ip,server_port,rcon_key=None):
-        #1 craft together a nice little payload (i.e. string, along with necessary server args)
-        payload = 'rcon yamum status'
-        response = self.send_payload()
+        pass
 
 
 class MapController:
