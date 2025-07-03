@@ -3,8 +3,8 @@ import inspect
 
 class SuperDaddyObject:
     '''
-    IMPORTANT: any object classes that may end up in a list (i.e. Clients/players) must use the 'id' attribute,
-    as they need a JSON-compatible way to be represented.
+    IMPORTANT: any object classes that may end up being represented as an object in a list (i.e. Clients/players)
+    must use the 'id' attribute, as they need a JSON-compatible way to be represented.
     '''
     def __init__(self,id=None):
         self.id = id # to be utilised for internal use. Not to be settable from API calls
@@ -27,7 +27,7 @@ class SuperDaddyObject:
 
         dictionary = {}
         childs = [x for x in inspect.getmembers(self) if not x[0].startswith('_') and type(x[1]).__name__ != 'method']
-            
+        
         def recursively_convert_element(attribute):
             # I exist because a recursive function was required
             if isinstance(attribute, (str,int,float,bool,type(None))):
@@ -37,18 +37,9 @@ class SuperDaddyObject:
                 return_list = []
                 
                 for x in attribute:
-                    dictionary = {}
-                    print("REEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE       ")
-                    print(x)
                     if isinstance(x, SuperDaddyObject):
-                        print('fuck cunt')
-                        dictionary[x.id] = (x.to_dictionary())
-                        print(dictionary)
-                        return_list.append(dictionary)
-                        #return_list += recursively_convert_element(x)
+                        return_list.append({x.id : x.to_dictionary()})
                     else:
-                        #bad
-                        print('CUNTCUNTCUNTCUNTCUNTCUNTCUNTCUNT\nCUNTCUNTCUNTCUNTCUNTCUNTCUNTCUNT\nCUNTCUNTCUNTCUNTCUNTCUNTCUNTCUNT\nCUNTCUNTCUNTCUNTCUNTCUNTCUNTCUNT\nCUNTCUNTCUNTCUNTCUNTCUNTCUNTCUNT\n')
                         return_list += recursively_convert_element(x)
                 
                 return return_list
@@ -61,23 +52,16 @@ class SuperDaddyObject:
             
             if isinstance(attribute, SuperDaddyObject):
                 return (attribute.to_dictionary())
+            
             # ultimately, returns either a primitive type (i.e. [int/str/bool/float/None]), a list, or a dictionary
-            print('!!!!!!! NONONONONONONO !!!!!!!!!!')
+            print('ERROR : unexpected type')
             raise 'exception' # if we get this far, it can only mean one thing...
-            # the user is fucking braindead - i.e. we've somehow been fed some poopoo data and so its time to fucking rage
-
+            # we've somehow been fed some poopoo data and so its time to fucking rage
 
         for attribute in childs :
-            print(f"!!! Checking attribute : '{attribute[0]}'")
-            print(f"!!! Attribute type     : {str(type(attribute[1]))}")
-            print(f"!!! Attribute value    : {attribute[1]}")
-            print("------------------------------------------")            
             dictionary[attribute[0]] = recursively_convert_element(attribute[1])
-            # not sure if attribute.__name__ works - this might fail / use another attribute perhaps
         
         return dictionary
-            
-
 
 class Map(SuperDaddyObject):
     def __init__(self,map_name:str=None,**kwargs):
@@ -91,7 +75,6 @@ class Client(SuperDaddyObject):
         self.client_port = client_port
         self.client_name = client_name
 
-
 class Server(SuperDaddyObject):
     def __init__(self, game_id:type[str|int]=None, server_ip:str=None, server_port:type[str|int]=None, rcon_key:str=None, server_state:str=None, version:type[str|int]=None, map:Map=None, clients:list[Client]=[], **kwargs):
         super().__init__()
@@ -104,21 +87,6 @@ class Server(SuperDaddyObject):
         self.map = map
         self.clients = clients
         
-    #def 
-
-class ApiMethodOutput: #/ ApiMethodTranslation
-    def __init__(self,rcon_command,is_server_response_required,is_rcon_priv_required=False,priority=0,**kwargs):
-        self.rcon_command = rcon_command
-        self.is_server_response_required = is_server_response_required
-        self.is_rcon_priv_required = is_rcon_priv_required
-        self.priority = priority
-
-
-class Packet:
-    def __init__(self,plaintext_payload=None,encoding=None,protocol=None,**kwargs):
-        if encoding != None : self.byte_array = bytearray(plaintext_payload,encoding)
-        pass
-
 class ClientResponse:
     def __init__(self,status_code,data=None):
         self.status_code = status_code
