@@ -179,16 +179,5 @@ class ClientController(xc.ClientController):
 
     def kickAll(self,server_ip,server_port,rcon_key):
         pass
-class Packet:
-    def __init__(self,plaintext_payload=None,encoding=None,protocol=None,**kwargs):
-        if encoding != None : self.byte_array = bytearray(plaintext_payload,encoding)
-        pass
-
-class ApiMethodOutput: #/ ApiMethodTranslation
-    def __init__(self,rcon_command,is_server_response_required,is_rcon_priv_required=False,priority=0,**kwargs):
-        self.rcon_command = rcon_command
-        self.is_server_response_required = is_server_response_required
-        self.is_rcon_priv_required = is_rcon_priv_required
-        self.priority = priority
 
 server_controller = ServerController(MapController(),ClientController())
