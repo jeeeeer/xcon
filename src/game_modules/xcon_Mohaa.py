@@ -87,10 +87,14 @@ class ServerController(xc.ServerController):
 
     def getStatus(self,server_ip,server_port,rcon_key):
         """
-        map: obj/obj_team1
+        Sample return from mohaa rcon status:
+        > rcon <rcon_key> status
+
+        map: dm/moh_dm6
         num score ping name            lastmsg address               qport rate
         --- ----- ---- --------------- ------- --------------------- ----- -----
-          8     0    0 =[v]= mist            0 119.18.4.211:12203    10991 20000
+          8    13   13 =[v]= mist            0 119.18.4.211:12203    10991 20000
+          5    5    27 =[x]= andys mum       0 21.3.119.23:12203     10964 25000
         """
         rcon_command = f"rcon {rcon_key} status"
 
@@ -136,20 +140,37 @@ class ServerController(xc.ServerController):
 
 
 class MapController(xc.MapController):
+    '''
+    '''
     def __init__(self,**kwargs):
         super().__init__(**kwargs)
         self.game_id = game_id
 
-    def PUBLIC_API_changeMap(self,new_map_name):
+    def changeMap(self,server_ip,server_port,new_map_name,rcon_key):
+        rcon_command = f"rcon {rcon_key} map {new_map_name}"
+        response = send_to_gameserver(rcon_command,server_ip,server_port,True)
         
-        print('! not implemented yet !')
-        return [ApiMethodOutput("! not implemented yet !")]
-    
-    def PUBLIC_API_getMaplist(self):
-        print('! not implemented yet !')
-        return [ApiMethodOutput("! not implemented yet !")]
+        response_string = response.data.decode('utf-8')
+        response_string_list = response_string.splitlines()
+        if re.search(r"success",response_string): # TODO: make this work
+            return xo.ClientResponse(204)
+        else:
+            return xo.ClientResponse(400) # TODO: more appropriate status code / exception handling
+        
+    def getMaplist(self,server_ip,server_port,rcon_key):
+        rcon_command = f"rcon {rcon_key} sv_maplist"
+        response = send_to_gameserver(rcon_command,server_ip,server_port,True)
+        
+        response_string = response.data.decode('utf-8')
+        response_string_list = response_string.splitlines()
 
-    print('we good fam fuck you')
+        return_dictionary = {}
+        # TODO: construct dictionary from return results
+        
+        if re.search(r"success",response_string): # TODO: make this work
+            return xo.ClientResponse(200, return_dictionary)
+        else:
+            return xo.ClientResponse(400) # TODO: more appropriate status code / exception handling
 
 class ClientController(xc.ClientController):
     def __init__(self,**kwargs):
@@ -171,7 +192,7 @@ class ClientController(xc.ClientController):
         else:
             return xo.ClientResponse(response.status_code)
         
-        if re.search(r"was kicked",response_string):
+        if re.search(r"was kicked",response_string): # TODO: verify this phrase
             return xo.ClientResponse(204)
         else:
             return xo.ClientResponse(500)

@@ -15,15 +15,17 @@ class SuperDaddyObject:
         however realised i'd need to recursively __dict__ everything anyway, and since we wanted to strictly
         check value types (keeping in mind JSON will be the final destination) I thought I may as well just
         roll with it since it had everything I was going to have to re-write anyway.
+         ----------------------
+        |  JSON   |    Python |
+        | --------------------|
+        | string  |       str |
+        | number  | int/float |
+        | object  |      dict |
+        | array   |      list |
+        | boolean |      bool |
+        | null    |      None |
+         ---------------------
         '''
-        # JSON     | Python
-        # ---------------------
-        # string     str
-        # number     int/float
-        # object     dict
-        # array      list
-        # boolean    bool
-        # null       'None'
 
         dictionary = {}
         childs = [x for x in inspect.getmembers(self) if not x[0].startswith('_') and type(x[1]).__name__ != 'method']
@@ -52,11 +54,12 @@ class SuperDaddyObject:
             
             if isinstance(attribute, SuperDaddyObject):
                 return (attribute.to_dictionary())
-            
             # ultimately, returns either a primitive type (i.e. [int/str/bool/float/None]), a list, or a dictionary
+            
+            # if we've made it this far we've somehow been fed some poopoo data and so its time to fucking rage
             print('ERROR : unexpected type')
             raise 'exception' # if we get this far, it can only mean one thing...
-            # we've somehow been fed some poopoo data and so its time to fucking rage
+            
 
         for attribute in childs :
             dictionary[attribute[0]] = recursively_convert_element(attribute[1])
