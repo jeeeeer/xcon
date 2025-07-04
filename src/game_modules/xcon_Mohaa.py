@@ -14,9 +14,12 @@ def send_to_gameserver(payload:str,server_ip:str,server_port:type[str|int],is_re
     BYTE255 = 0xff (255 in decimal / 11111111)
     BYTE2   = 0x2  (2 in decimal   / 00000010)
     construct byte arrays (rcon magic 5-byte header + message encoded in ASCII bytes)
+
+    TODO: Implement a time-out threshold
     '''
-    bad_rcon_password = bytearray() # r"bad rcon password" # TODO: Define this
+    bad_rcon_password = bytearray() # TODO: Define this (bytes for "bad password" response)
     payload_byte_frame = bytearray()
+
     # build pre-pended secret byte sauce
     for _ in range(4) :
         payload_byte_frame.append(0xff)
@@ -29,8 +32,7 @@ def send_to_gameserver(payload:str,server_ip:str,server_port:type[str|int],is_re
         sock.sendto(payload_byte_frame, (server_ip, server_port))
     
         if is_response_required == False:
-            return xo.ClientResponse(200)
-    
+            return xo.ClientResponse(200)    
         response_bytes = sock.recv(response_byte_length)
     # socket collapses here
     if not response_bytes:
@@ -38,7 +40,7 @@ def send_to_gameserver(payload:str,server_ip:str,server_port:type[str|int],is_re
     
     if response_bytes == bad_rcon_password:
         #return {"data" : None,"status_code" : 403}
-        pass # todo: complete this block
+        pass # TODO: complete this block
     
     # slicing off the 1st 11 bytes, as they are just the usual bytes prepend and not actual data
     if not response_bytes[11:]:
@@ -48,14 +50,12 @@ def send_to_gameserver(payload:str,server_ip:str,server_port:type[str|int],is_re
 class Map(xo.Map):
     def __init__(self,map_name=None,game_type=None,**kwargs):
         super().__init__(map_name)
-        self.game_id = game_id
         self.game_type = game_type
 
 class Client(xo.Client):
-    def __init__(self,client_ip:str=None,client_port:type[str|int]=None,client_name:type[str|int]=None,client_gameid:int=None,client_ping:int=None,client_score:int=None,client_lastmsg:int=None,client_qport:int=None,client_rate:int=None,**kwargs):
-        super().__init__(id,client_ip,client_port,client_name)
-        self.id = f"{client_ip}:{client_port}"
-        self.game_id = game_id
+    def __init__(self,identity:type[str|int]=None,client_ip:str=None,client_port:type[str|int]=None,client_name:type[str|int]=None,client_gameid:int=None,client_ping:int=None,client_score:int=None,client_lastmsg:int=None,client_qport:int=None,client_rate:int=None,**kwargs):
+        super().__init__(identity,client_ip,client_port,client_name)
+        self.identity = identity
         self.client_gameid = client_gameid
         self.client_ping = client_ping
         self.client_score = client_score
@@ -64,24 +64,56 @@ class Client(xo.Client):
         self.client_rate = client_rate
 
 class Server(xo.Server):
-    def __init__(self,game_id:type[str|int]=None, server_ip:str=None, server_port:type[str|int]=None, rcon_key:str=None, server_state:str=None, version:type[str|int]=None, map:Map=None, clients:list[Client]=[], **kwargs):
-        super().__init__(game_id,server_ip,server_port,rcon_key,server_state,version,map,clients,**kwargs)
-
+    def __init__(self,game_id:type[str|int]=None, server_ip:str=None, server_port:type[str|int]=None, server_name:type[str|int]=None, server_state:str=None, version:type[str|int]=None, map:Map=None, clients:list[Client]=[], cvars:dict=None, rcon_key:str=None,**kwargs):
+        super().__init__(game_id,server_ip,server_port,server_name,server_state,version,map,clients,rcon_key)
+        if cvars != None: self.cvars = cvars
 
 class ServerController(xc.ServerController):
     def __init__(self,map_controller=None,client_controller=None,**kwargs):
-        super().__init__(map_controller,client_controller)
+        super().__init__(map_controller,client_controller,**kwargs)
         self.game_id = game_id
 
-    def getMethods():
+    def getAllInfo(self):
         pass
 
-    def getAll(self):
-        pass
+    def getBasicInfo(self,server_ip,server_port):
+        rcon_command = f"getstatus"
 
-    def getInfo(self,server_ip,server_port):
-        # 'getstatus' (no rcon needed)
-        pass
+        cvar_dict = {}
+        response = send_to_gameserver(rcon_command,server_ip,server_port,True)
+
+        response_string = response.data.decode('utf-8')
+        response_string_split = response_string.split('\\')
+
+        if response_string_split[0] != 'Response\n':
+            return xo.ClientResponse(400,'Command failed - unexpected response from game server')
+
+        response_string_split = response_string_split[1:]
+
+        for i in range(0,len(response_string_split)-1,2):
+            cvar_dict[response_string_split[i]] = response_string_split[i+1]
+        
+        # return [server object]
+        #   - cvars = []
+        #   - map = Map(map_name,game_type)
+        #   - server_state = 'online'
+        #   - version = 
+        
+        for x in response_string_split:
+            print(x)
+        
+        server_state = Server(
+            server_name  = cvar_dict['sv_hostname'],
+            map          = Map(map_name=cvar_dict['mapname'], game_type=cvar_dict['g_gametypestring']),
+            game_id      = self.game_id,
+            server_ip    = server_ip,
+            server_port  = server_port,
+            cvars        = cvar_dict,
+            version      = cvar_dict['version'],
+            server_state ='online'
+        )
+
+        return xo.ClientResponse(200,server_state.to_dictionary())
 
     def getStatus(self,server_ip,server_port,rcon_key):
         """
@@ -108,34 +140,19 @@ class ServerController(xc.ServerController):
         client_states: list[Client] = []
         client_rows = response_string_list[3:]
         
+        # this is where we parse the game server's string response
         for line in client_rows:
             if line.strip() == '':
                 break
             client_data = line.split()
             client_ip,client_port = client_data[-3].split(':')
-            
-            client_states.append(Client(
-                client_ip      = client_ip,
-                client_port    = client_port,
-                client_gameid  = client_data[0],
-                client_score   = client_data[1],
-                client_ping    = client_data[2],
-                client_name    = " ".join(client_data[3:-4]),
-                client_lastmsg = client_data[-4],
-                client_qport   = client_data[-2],
-                client_rate    = client_data[-1]
-            ))
+            client_name = " ".join(client_data[3:-4])
+            client_identity = f"{client_ip}:{client_port}"
+            client_states.append(Client(client_identity,client_ip,client_port,client_name,client_data[0],client_data[2],client_data[1],client_data[-4],client_data[-2],client_data[-1]))
 
-        server_state = Server(
-            map         = Map(map_name),
-            clients     = client_states,
-            game_id     = self.game_id,
-            server_ip   = server_ip,
-            server_port = server_port,
-            rcon_key    = rcon_key
-        )            
+        server_state = Server(self.game_id,server_ip,server_port,None,'online',None,Map(map_name),client_states,None)
+          
         return xo.ClientResponse(200,server_state.to_dictionary())
-
 
 class MapController(xc.MapController):
     '''
@@ -146,14 +163,14 @@ class MapController(xc.MapController):
 
     def changeMap(self,server_ip,server_port,new_map_name,rcon_key):
         rcon_command = f"rcon {rcon_key} map {new_map_name}"
-        response = send_to_gameserver(rcon_command,server_ip,server_port,True)
-        
-        response_string = response.data.decode('utf-8')
-        response_string_list = response_string.splitlines()
-        if re.search(r"success",response_string): # TODO: make this work
-            return xo.ClientResponse(204)
-        else:
-            return xo.ClientResponse(400) # TODO: more appropriate status code / exception handling
+        response = send_to_gameserver(rcon_command,server_ip,server_port,False)
+        # DISABLING RESPONSE for now as we don't know what bytes we need yet
+        #response_string = response.data.decode('utf-8')
+        #response_string_list = response_string.splitlines()
+        #if re.search(r"success",response_string): # TODO: make this work
+        return xo.ClientResponse(200,"Map change command sent successfully")
+        #else:
+        #    return xo.ClientResponse(400) # TODO: more appropriate status code / exception handling
         
     def getMaplist(self,server_ip,server_port,rcon_key):
         rcon_command = f"rcon {rcon_key} sv_maplist"

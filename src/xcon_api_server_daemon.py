@@ -39,8 +39,12 @@ def listen(listen_port=80,listen_address='',verbose=False):
         listen_socket.bind((listen_address,listen_port))
         
         listen_socket.listen()
-        client_connection,your_mum = listen_socket.accept()
-
+        try:
+            client_connection,your_mum = listen_socket.accept()
+        except Exception as error:
+            if verbose: print(f"ERROR : {error}")
+            return
+        
         with client_connection:
             while True:
                 inbound_payload = client_connection.recv(8192)
@@ -117,7 +121,10 @@ def send_client_response(socket,status_code:type[int|str],data:type[dict|str]=No
     
     if verbose : print(f"{separator}\nTRANSMITTING HTTP DATA:\n{separator}\n{byte_frame.decode('utf-8')}")
     
-    socket.send(byte_frame)
+    try:
+        socket.send(byte_frame)
+    except Exception as error:
+        print(f"ERROR : {error}")
 
 def process_client_request(request_payload,socket,verbose=False):
     '''
@@ -136,9 +143,9 @@ def process_client_request(request_payload,socket,verbose=False):
 
     if verbose : print(f"\n{separator}\nREQUEST RECEIVED. HTTP data:\n{separator}\n{all_http_content}")
     
-    # http://xcon-api.com/mohaa/getServerStatus (example call)
+    # http://xcon-api.com/mohaa/getStatus (example call)
     if not re.search(r"HTTP/1\.\d",(split_http_content[0].split()[2])):
-        send_client_response(socket,400,verbose=verbose); print('ERROR : Non-HTTP request received') # debug
+        send_client_response(socket,400,verbose=verbose); print('ERROR : Non-HTTP request received (regex failed for \'HTTP/1.1)\'') # debug
         return 400
     
     api_call = split_http_content[0].split()[1].lstrip('/')
@@ -153,7 +160,7 @@ def process_client_request(request_payload,socket,verbose=False):
     # Serialise + lightly validate (regex) request
     matches = re.search(r"^(?P<namespaces>[a-zA-Z/]+?)/(?P<method>[a-zA-Z]+)$",api_call.strip())
     if not matches:
-        send_client_response(socket,400,verbose=verbose); print(('Syntax error in client request (regex failed)'))
+        send_client_response(socket,400,verbose=verbose); print(('Regex failed for API syntax'))
         return 400
     request_namespaces, request_method = matches.group('namespaces').split('/'), matches.group('method')
     
@@ -182,10 +189,11 @@ def process_client_request(request_payload,socket,verbose=False):
         gameserver_response = getattr(buffered_controller,requested_method[0][0])(**request_args_dict)
     except TypeError:
         # TODO: write a function to customise client responses depending on what was wrong with their query
-        send_client_response(socket,449,"Missing required parameters (incorrect value type also possible)",verbose=verbose)
+        send_client_response(socket,449,"Parameter error - check values and types and retry.",verbose=verbose)
         return 449
-    except:
+    except Exception as error:
         send_client_response(socket,449,"Unknown error. Verify syntax and spelling is correct and retry",verbose=verbose)
+        if verbose: print(f"ERROR : {error}")
         return 1
     
     send_client_response(socket,gameserver_response.status_code,gameserver_response.data,verbose=verbose)

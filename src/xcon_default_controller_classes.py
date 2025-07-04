@@ -5,6 +5,10 @@ class BigSuperDaddyController:
     def __init__(self):
         pass
 
+    # TODO: Make this do something.
+    def getMethods():
+        pass
+
 class ServerController(BigSuperDaddyController):
     def __init__(self,map_controller=None,client_controller=None,**kwargs):
         super().__init__()
